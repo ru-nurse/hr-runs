@@ -2324,19 +2324,30 @@ function getPersonDepartmentText(person) {
 }
 
 function getPersonDisplayName(person) {
-  const employeeTitle = normalizeText(firstValue(
-    person && person.TITLE_EMPLOYEE,
-    person && person.TITLE_AMPLOYEE
-  ));
-  const personalTitle = normalizeText(firstValue(
-    person && person.TITLE_NAME,
-    person && person.PREFIX
-  ));
-  const prefix = employeeTitle || personalTitle;
+  const prefix = getPersonDisplayPrefix(person);
   const firstName = normalizeText(person && person.FIRST_NAME);
   const lastName = normalizeText(person && person.LAST_NAME);
   const composedName = [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
-  return composedName || normalizeText(person && person.FULL_NAME) || '-';
+  if (firstName || lastName) return composedName;
+  // FULL_NAME อาจมีคำนำหน้าเดิมติดมาแล้ว จึงเอาออกก่อนประกอบใหม่
+  const name = normalizeText(person && person.FULL_NAME).replace(/^(?:(?:ผู้ช่วยศาสตราจารย์|รองศาสตราจารย์|ศาสตราจารย์|อาจารย์|ผศ\.|รศ\.|ศ\.|ดร\.|นางสาว|นาง|นาย)\s*)+/, '');
+  return name ? [prefix, name].filter(Boolean).join(' ') : '-';
+}
+
+function getPersonDisplayPrefix(person) {
+  if (!person) return '';
+  const titles = [person.ACADEMIC_POSITION, person.academic_position,
+    person.TITLE_EMPLOYEE, person.TITLE_AMPLOYEE, person.title_employee,
+    person.PREFIX, person.TITLE_NAME].map(normalizeText).join(' ');
+  // ตรวจตำแหน่งสูงก่อน และเลือกเพียงตำแหน่งเดียว ไม่ต่อ "อาจารย์" ซ้ำ
+  const rank = /ผู้ช่วยศาสตราจารย์|ผศ\./.test(titles) ? 'ผู้ช่วยศาสตราจารย์'
+    : /รองศาสตราจารย์|รศ\./.test(titles) ? 'รองศาสตราจารย์'
+    : /ศาสตราจารย์|(?:^|\s)ศ\./.test(titles) ? 'ศาสตราจารย์' : '';
+  const doctoralFields = [person.DOCTORAL_DEGREE, person.DOCTORAL_DEGREES_YEAR];
+  const hasDoctorate = doctoralFields.some(value => Boolean(firstValue(value))) || /ดร\./.test(titles);
+  if (rank) return [rank, hasDoctorate ? 'ดร.' : ''].filter(Boolean).join(' ');
+  if (hasDoctorate) return 'ดร.';
+  return /อาจารย์/.test(titles) || getPersonnelGroup(person) === 'LECTURER' ? 'อาจารย์' : '';
 }
 
 function getPublicPositionText(person) {
