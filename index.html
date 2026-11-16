@@ -1485,6 +1485,7 @@ function setPublicFacultyPractice(rows) {
 
 function setPublicPeople(rows) {
   publicPeople = rows
+    .map(person => Object.assign({}, person, publicProfileCache.get(String(person.PERSON_ID || '').trim()) || {}))
     .filter(isPublicPerson)
     .sort(comparePublicPeople);
   populatePublicDepartmentOptions(publicPeople);
@@ -1600,7 +1601,11 @@ function getPublicProfileCacheKey(personId) {
 function getCachedPublicProfile(personId) {
   const cacheKey = String(personId || '').trim();
   if (!cacheKey) return null;
-  if (publicProfileCache.has(cacheKey)) return publicProfileCache.get(cacheKey);
+  if (publicProfileCache.has(cacheKey)) {
+    const person = publicProfileCache.get(cacheKey);
+    mergePublicPerson(person);
+    return person;
+  }
 
   try {
     const cached = JSON.parse(localStorage.getItem(getPublicProfileCacheKey(cacheKey)) || 'null');
@@ -1709,6 +1714,7 @@ function mergePublicPerson(person) {
   visiblePublicPeople = visiblePublicPeople.map(item =>
     String(item.PERSON_ID || '').trim() === id ? Object.assign({}, item, person) : item
   );
+  updatePublicCardFromPerson(publicPeople.find(item => String(item.PERSON_ID || '').trim() === id) || person);
   // หมายเหตุ: เดิม merge ทีไรจะ rebuild แท็บกลุ่มวิชาทั้งชุดทันที (populatePublicDepartmentOptions)
   // แต่ hydrate ทำงานแบบ stagger หลายคนต่อครั้ง ทำให้ innerHTML ของแท็บถูกสร้างใหม่รัว ๆ
   // จนแท็บกะพริบ/หาย + หน้าอืด จึงตัดออก แท็บกลุ่มวิชาถูกสร้างครบแล้วตอนโหลดลิสต์ (setPublicPeople)
@@ -2424,7 +2430,10 @@ function hydrateVisiblePublicCards() {
 
   if (!targets.length) return;
 
-  hydratePublicCardBatch(targets.slice(0, 24));
+  hydratePublicCardBatch(targets.slice(0, 24)).then(() => {
+    // โหลดกลุ่มถัดไปด้วย เพื่อไม่ให้คนลำดับที่ 25 เป็นต้นไปค้างชื่อเดิม
+    hydrateVisiblePublicCards();
+  });
 }
 
 async function hydratePublicCardBatch(ids) {
