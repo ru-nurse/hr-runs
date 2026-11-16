@@ -1381,8 +1381,8 @@ const pendingPublicProfileLoads = new Set();
 const attemptedHydrationIds = new Set();
 
 // Cache ฝั่ง browser ช่วยให้เปิดหน้าซ้ำเร็วขึ้น และยังแสดงข้อมูลล่าสุดได้ถ้า backend ล่มชั่วคราว
-const PUBLIC_CACHE_KEY = 'hrm_public_people_v12_supabase_contract';
-const PUBLIC_PROFILE_CACHE_PREFIX = 'hrm_public_profile_person_v1_';
+const PUBLIC_CACHE_KEY = 'hrm_public_people_v13_doctoral_prefix';
+const PUBLIC_PROFILE_CACHE_PREFIX = 'hrm_public_profile_person_v2_doctoral_';
 const PUBLIC_RESEARCH_CACHE_PREFIX = 'hrm_public_research_person_v2_';
 const PUBLIC_CACHE_MAX_AGE = 1000 * 60 * 60;
 const PUBLIC_LOADING_TEXT = 'กำลังโหลด';
@@ -2344,7 +2344,13 @@ function getPersonDisplayPrefix(person) {
     : /รองศาสตราจารย์|รศ\./.test(titles) ? 'รองศาสตราจารย์'
     : /ศาสตราจารย์|(?:^|\s)ศ\./.test(titles) ? 'ศาสตราจารย์' : '';
   const doctoralFields = [person.DOCTORAL_DEGREE, person.DOCTORAL_DEGREES_YEAR];
-  const hasDoctorate = doctoralFields.some(value => Boolean(firstValue(value))) || /ดร\./.test(titles);
+  const doctoralFlag = person.HAS_DOCTORAL_DEGREE;
+  const educationRows = Array.isArray(person.EDUCATION_ROWS) ? person.EDUCATION_ROWS : [];
+  const hasDoctorate = doctoralFlag === true || String(doctoralFlag).toLowerCase() === 'true'
+    || educationRows.some(row => /^(DOCTORAL|ปริญญาเอก)$/i.test(normalizeText(row.DEGREE_LEVEL || row.degree_level)))
+    || doctoralFields.some(value => Boolean(firstValue(value)))
+    || /ดร\./.test(titles)
+    || /^(?:(?:ผู้ช่วยศาสตราจารย์|รองศาสตราจารย์|ศาสตราจารย์|อาจารย์|ผศ\.|รศ\.|ศ\.)\s*)*ดร\./.test(normalizeText(person.FULL_NAME));
   if (rank) return [rank, hasDoctorate ? 'ดร.' : ''].filter(Boolean).join(' ');
   if (hasDoctorate) return 'ดร.';
   return /อาจารย์/.test(titles) || getPersonnelGroup(person) === 'LECTURER' ? 'อาจารย์' : '';
@@ -2401,6 +2407,8 @@ function setLoadingAwareText(el, value) {
 
 function needsPublicProfileHydration(person) {
   if (!person || !person.PERSON_ID) return false;
+  // รายชื่อแบบย่อไม่มีวุฒิ ต้องอ่านโปรไฟล์ก่อนจึงจะตัดสินว่าเติม ดร. หรือไม่
+  if (person.HAS_DOCTORAL_DEGREE == null && !Array.isArray(person.EDUCATION_ROWS)) return true;
   if (!getPublicPositionText(person)) return true;
   if (!getPersonDepartmentText(person)) return true;
   if (!normalizeText(person.TITLE_EMPLOYEE || person.TITLE_AMPLOYEE || person.TITLE_NAME || person.PREFIX)) return true;
